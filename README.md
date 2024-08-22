@@ -4,14 +4,27 @@ This repo defines an AWS SAM template for a pipeline to ingest S3 files to Postg
 The pipeline happy path operates as follows:
 
 ```mermaid
-flowchart TD
-    A[CSV file] -->|1: Upload to S3 directory| B(S3)
-    B --> |2: S3 Event creates SQS message| C(SQS)
-    C -->|3: Spawn Lambda| D(Lambda)
-    D <-->|4: Get credientials| F(AWS Secrets)
-    D <-->|4: Stream CSV| B
-    D -->|4: COPY CSV data into table| E(PostgreSQL database)
-    D -->|5: Update `imported_files` table| E
+sequenceDiagram
+    participant S3 as S3 Bucket
+    participant SQS as SQS Queue
+    participant Lambda as Lambda Function
+    participant SecretsManager as Secrets Manager
+    participant Timescale as Timescale Database
+    participant CloudWatch as CloudWatch Logs
+
+    S3->>SQS: 1. File uploaded event
+    SQS->>Lambda: 2. Trigger Lambda function
+    Lambda->>SecretsManager: 3. Request database credentials
+    SecretsManager->>Lambda: 4. Return credentials
+    Lambda->>S3: 5. Get file metadata and content
+    S3->>Lambda: 6. Return file data
+    Lambda->>Timescale: 7. Check if file already processed
+    Timescale->>Lambda: 8. Confirm file not processed
+    Lambda->>Timescale: 9. Create target table if not exists
+    Lambda->>Timescale: 10. Stream COPY data from S3 file
+    Lambda->>Timescale: 11. Mark file as processed
+    Lambda->>SQS: 12. Delete processed message
+    Lambda->>CloudWatch: 13. Log operation details
 ```
 ## Features
 - CSV files are imported to a table name that matches the top level S3 directory
@@ -22,7 +35,25 @@ flowchart TD
 - Persistent failures will be routed to the SQS Dead Letter Queue for manual processing
   
 ## Non-goals
-- Parallel import / multi-threading. If files take too long to import then reduce CSV size. 
+- Parallel import / multi-threading. If files take too long to import then reduce CSV size.
+
+## Schema
+
+The lambda will create the `processed_files` table on first run with the following schema. All files listed in this table have been ingested exactly once.
+
+```mermaid
+erDiagram
+    PROCESSED_FILES {
+        int id PK
+        text bucket
+        text key
+        timestamptz processed_at
+        interval processing_time
+        int rows_copied
+        bigint file_size_bytes
+        text target_table
+    }
+```
 
 ## Usage
 ### Pre-requisites
