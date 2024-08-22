@@ -41,6 +41,8 @@ flowchart TD
 - You should see the rows appear in your table, and import details show up in the new `processed_files` table.
 - 🚀🚀🚀
 
+![Check it out!](https://i.imgur.com/mFfrouF.gif)
+
 ### Uninstallation
 - Remove all folders and files from your ingest S3 bucket manually (these will cause `sam delete` to fail, protecting your data)
 - Run `sam delete`
