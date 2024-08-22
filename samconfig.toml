@@ -1,0 +1,7 @@
+version = 0.1
+[default.deploy.parameters]
+stack_name = "timescale-s3-pipeline"
+resolve_s3 = true
+s3_prefix = "timescale-s3-pipeline"
+capabilities = "CAPABILITY_IAM"
+image_repositories = []

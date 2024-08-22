@@ -60,11 +60,13 @@ def create_table_if_not_exists(cursor, table_name):
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS {table_name} (
             id SERIAL PRIMARY KEY,
-            bucket VARCHAR(255) NOT NULL,
-            key VARCHAR(1024) NOT NULL,
+            bucket TEXT NOT NULL,
+            key TEXT NOT NULL,
+            target_table TEXT NOT NULL,
             processed_at TIMESTAMP NOT NULL,
             processing_time INTERVAL NOT NULL,
             rows_copied INTEGER NOT NULL,
+            s3_size_bytes BIGINT NOT NULL,
             UNIQUE (bucket, key)
         )
     """)
@@ -116,14 +118,14 @@ def is_file_processed(cursor, bucket, key):
         logger.error(f"Error checking processed files: {str(e)}\nTraceback: {traceback.format_exc()}")
         raise
 
-def mark_file_as_processed(cursor, bucket, key, processing_time, rows_copied):
+def mark_file_as_processed(cursor, bucket, key, processing_time, rows_copied, file_size, target_table):
     logger.info(f"Marking file {key} from bucket {bucket} as processed")
     try:
         cursor.execute(
-            sql.SQL("INSERT INTO {} (bucket, key, processed_at, processing_time, rows_copied) VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s)").format(sql.Identifier(PROCESSED_FILES_TABLE)),
-            (bucket, key, processing_time, rows_copied)
+            sql.SQL("INSERT INTO {} (bucket, key, processed_at, processing_time, rows_copied, file_size_bytes, target_table) VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s)").format(sql.Identifier(PROCESSED_FILES_TABLE)),
+            (bucket, key, processing_time, rows_copied, file_size, target_table)
         )
-        logger.info(f"File marked as processed successfully. Processing time: {processing_time}, Rows copied: {rows_copied}")
+        logger.info(f"File marked as processed successfully. Processing time: {processing_time}, Rows copied: {rows_copied}, File size: {file_size} bytes, Target table: {target_table}")
     except psycopg2_errors.UniqueViolation:
         logger.warning(f"File {key} from bucket {bucket} already marked as processed")
     except psycopg2.Error as e:
@@ -167,12 +169,13 @@ def process_file(bucket, key):
                 
                 logger.info(f"Retrieving object {key} from bucket {bucket}")
                 s3_object = s3.get_object(Bucket=bucket, Key=key)
-                logger.info("Successfully retrieved S3 object")
+                file_size = s3_object['ContentLength']
+                logger.info(f"Successfully retrieved S3 object. File size: {file_size} bytes")
                 
                 # Stream copy to PostgreSQL and get processing time and rows copied
                 processing_time, rows_copied = stream_copy_to_postgres(cursor, s3_object, target_table)
                 
-                mark_file_as_processed(cursor, bucket, key, processing_time, rows_copied)
+                mark_file_as_processed(cursor, bucket, key, processing_time, rows_copied, file_size, target_table)
                 
                 conn.commit()
                 logger.info(f"Successfully copied data from {key} to table {target_table}")
