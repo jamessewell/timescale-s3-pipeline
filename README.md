@@ -18,7 +18,7 @@ flowchart TD
 - Any error will result in the SQS message not being removed, which will trigger a retry after 5mins
 - Files which have already been imported will not be re-imported (unless they are removed from `imported_files`)
   
-# Non-goals
+## Non-goals
 - Parallel import / multi-threading. If files take too long to import then reduce CSV size. 
 
 ## Usage
