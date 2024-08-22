@@ -24,7 +24,7 @@ flowchart TD
 
 ## Usage
 ### Pre-requisites
-- Install the `sam` client and configure it as (described here)[https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html]
+- Install the AWS `sam` (Serverless Application Model) client and configure it as [described here](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
 - Ensure that the API key you have configured has S3, SecretManager, Lambda and SQS permissions.
 
 ### Installation
