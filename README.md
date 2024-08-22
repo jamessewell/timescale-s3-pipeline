@@ -8,7 +8,8 @@ flowchart TD
     A[CSV file] -->|1: Upload to S3 directory| B(S3)
     B --> |2: S3 Event creates SQS message| C(SQS)
     C -->|3: Spawn Lambda| D(Lambda)
-    D <-->|4: Stream CSV| B(PostgreSQL database)
+    D <-->|4: Get credientials| F(AWS Secrets)
+    D <-->|4: Stream CSV| B
     D -->|4: COPY CSV data into table| E(PostgreSQL database)
     D -->|5: Update `imported_files` table| E
 ```
