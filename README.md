@@ -30,8 +30,10 @@ flowchart TD
 - Ensure that the API key you have configured has S3, SecretManager, Lambda and SQS permissions.
 
 ### Installation
-- Run `sam deploy --guided`. The guided option will prompt you for all variable values, and then write the results to a file to re-use next time.
+- Run `sam deploy --guided --stack-name timescale-s3-pipeline`. The guided option will prompt you for all variable values, and then write the results to a file to re-use next time.
 - ✅ Done
+
+![Check it out!](https://i.imgur.com/GSZRjSq.gif)
 
 ### Testing
 - Create a subfolder in your ingest S3 bucket which matches the name of a table you want to ingest data into
