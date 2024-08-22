@@ -1,0 +1,163 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Timescale S3 Pipeline Stack
+Parameters:
+  IngestBucket:
+    Type: String
+    Description: Bucket to ingest S3 files from (must not exist)
+  DbHost:
+    Type: String
+    Description: PostgreSQL host
+  DbPort:
+    Type: Number
+    Description: PostgreSQL port
+    Default: 5432
+  DbName:
+    Type: String
+    Description: PostgreSQL database name
+  DbUsername:
+    Type: String
+    Description: PostgreSQL username
+  DbPassword:
+    Type: String
+    NoEcho: true
+    Description: PostgreSQL password
+Resources:
+  TS3PBucket:
+    Type: AWS::S3::Bucket
+    DependsOn:
+    - TS3PQueuePolicy
+    Properties:
+      BucketName:
+        Fn::Sub: ${IngestBucket}
+      NotificationConfiguration:
+        QueueConfigurations:
+        - Event: s3:ObjectCreated:*
+          Queue:
+            Fn::GetAtt:
+            - TS3PQueue
+            - Arn
+          Filter:
+            S3Key:
+              Rules:
+              - Name: suffix
+                Value: .csv
+    Metadata:
+      SamResourceId: TS3PBucket
+  TS3PQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName:
+        Fn::Sub: ${AWS::StackName}-s3tt-queue
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn:
+          Fn::GetAtt:
+          - TS3PDLQueue
+          - Arn
+        maxReceiveCount: 3
+    Metadata:
+      SamResourceId: TS3PQueue
+  TS3PDLQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName:
+        Fn::Sub: ${AWS::StackName}-s3tt-dead-letter-queue
+    Metadata:
+      SamResourceId: TS3PDLQueue
+  TS3PQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Id: QueuePolicy
+        Statement:
+        - Sid: Allow-SendMessage-To-Queue-From-S3-Event-Notification
+          Effect: Allow
+          Principal:
+            Service: s3.amazonaws.com
+          Action:
+          - sqs:SendMessage
+          Resource:
+            Fn::GetAtt:
+            - TS3PQueue
+            - Arn
+          Condition:
+            ArnLike:
+              aws:SourceArn:
+                Fn::Join:
+                - ''
+                - - 'arn:aws:s3:::'
+                  - Fn::Sub: ${IngestBucket}
+            StringEquals:
+              aws:SourceAccount:
+                Ref: AWS::AccountId
+      Queues:
+      - Ref: TS3PQueue
+    Metadata:
+      SamResourceId: TS3PQueuePolicy
+  TS3PSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name:
+        Fn::Sub: ${AWS::StackName}-db-secret
+      Description: Timescale credentials
+      SecretString:
+        Fn::Sub: '{"host":"${DbHost}","port":${DbPort},"dbname":"${DbName}","username":"${DbUsername}","password":"${DbPassword}"}'
+    Metadata:
+      SamResourceId: TS3PSecret
+  TS3PLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-s3tt-lambda
+      CodeUri: ./src/
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.11
+      Timeout: 300
+      MemorySize: 256
+      Environment:
+        Variables:
+          SECRET_NAME:
+            Ref: TS3PSecret
+          SQS_QUEUE_URL:
+            Ref: TS3PQueue
+          PROCESSED_FILES_TABLE: processed_files
+          MAPPING_TABLE: s3_table_mapping
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue:
+              Fn::GetAtt:
+              - TS3PQueue
+              - Arn
+            BatchSize: 1
+      Policies:
+      - AWSSecretsManagerGetSecretValuePolicy:
+          SecretArn:
+            Ref: TS3PSecret
+      - S3FullAccessPolicy:
+          BucketName:
+            Ref: TS3PBucket
+    Metadata:
+      SamResourceId: TS3PLambda
+Outputs:
+  TS3PBucketName:
+    Description: Name of the S3 bucket for data transfer
+    Value:
+      Ref: TS3PBucket
+  TS3PQueueUrl:
+    Description: URL of the SQS queue for data transfer
+    Value:
+      Ref: TS3PQueue
+  TS3PSecretName:
+    Description: Name of the Secrets Manager secret for database credentials
+    Value:
+      Ref: TS3PSecret
+  TS3PLambdaArn:
+    Description: ARN of the S3 to Timescale Lambda function
+    Value:
+      Fn::GetAtt:
+      - TS3PLambda
+      - Arn
