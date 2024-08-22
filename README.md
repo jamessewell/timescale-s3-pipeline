@@ -18,6 +18,8 @@ flowchart TD
 - The `imported_files` table is created on first run if it doesn't exist
 - Any error will result in the SQS message not being removed, which will trigger a retry after 5mins
 - Files which have already been imported will not be re-imported (unless they are removed from `imported_files`)
+- Full logging to CloudWatch
+- Persistent failures will be routed to the SQS Dead Letter Queue for manual processing
   
 ## Non-goals
 - Parallel import / multi-threading. If files take too long to import then reduce CSV size. 
