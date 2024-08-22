@@ -1,7 +1,7 @@
 # timescale-s3-pipeline
 This repo defines an AWS SAM template for a pipeline to ingest S3 files to Postgres with a Lambda. It can be deployed with a single command.
 
-The pipeline operates as follows:
+The pipeline happy path operates as follows:
 
 ```mermaid
 flowchart TD
