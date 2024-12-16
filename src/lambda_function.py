@@ -66,7 +66,7 @@ def create_table_if_not_exists(cursor, table_name):
             processed_at TIMESTAMP NOT NULL,
             processing_time INTERVAL NOT NULL,
             rows_copied INTEGER NOT NULL,
-            s3_size_bytes BIGINT NOT NULL,
+            file_size_bytes BIGINT NOT NULL,
             UNIQUE (bucket, key)
         )
     """)
